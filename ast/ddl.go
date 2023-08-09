@@ -898,16 +898,17 @@ func (n *ColumnDef) Validate() bool {
 type CreateTableStmt struct {
 	ddlNode
 
-	IfNotExists bool
-	IsTemporary bool
-	Table       *TableName
-	ReferTable  *TableName
-	Cols        []*ColumnDef
-	Constraints []*Constraint
-	Options     []*TableOption
-	Partition   *PartitionOptions
-	OnDuplicate OnDuplicateKeyHandlingType
-	Select      ResultSetNode
+	IfNotExists      bool
+	IsTemporary      bool
+	Table            *TableName
+	ReferTable       *TableName
+	Cols             []*ColumnDef
+	Constraints      []*Constraint
+	Options          []*TableOption
+	TdSqlDistributed *TdSqlDistributed
+	Partition        *PartitionOptions
+	OnDuplicate      OnDuplicateKeyHandlingType
+	Select           ResultSetNode
 }
 
 // Restore implements Node interface.
@@ -3218,6 +3219,29 @@ func (n *PartitionMethod) acceptInPlace(v Visitor) bool {
 		n.ColumnNames[i] = newColName.(*ColumnName)
 	}
 	return true
+}
+
+// TdSqlDistributed represents the TDSQL sharded table option
+type TdSqlDistributed struct {
+	node
+	*PartitionOptions
+}
+
+func (t *TdSqlDistributed) Validate() error {
+	// if both a partition list and the partition numbers are specified, their values must match
+	if t.Num != 0 && len(t.Definitions) != 0 && t.Num != uint64(len(t.Definitions)) {
+		return ErrPartitionWrongNoPart
+	}
+
+	for _, pd := range t.Definitions {
+		// ensure the partition definition types match the methods,
+		// e.g. RANGE partitions only allows VALUES LESS THAN
+		if err := pd.Clause.Validate(t.Tp, len(t.ColumnNames)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // PartitionOptions specifies the partition options.
