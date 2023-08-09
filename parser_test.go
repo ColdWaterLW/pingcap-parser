@@ -2973,6 +2973,26 @@ func (s *testParserSuite) TestDDLValue(c *C) {
 	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
 	c.Assert(stmt.(*ast.CreateTableStmt).Options[0].Tp, Equals, ast.TableOptionShardKey)
 	c.Assert(stmt.(*ast.CreateTableStmt).Options[0].StrValue, Equals, "a")
+
+	stmt, err = parser.ParseOneStmt("create table test2 ( a int, b int, c char(20),primary key (a,b),unique key u_1(a,c) ) TDSQL_DISTRIBUTED BY LIST(a);", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "a")
+
+	stmt, err = parser.ParseOneStmt("create table test2 ( a int, b int, c char(20),primary key (a,b),unique key u_1(a,c) ) TDSQL_DISTRIBUTED BY LIST(c) (s1 VALUES IN (1,3,5),s2 VALUES IN (2,4,6));", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "c")
+
+	stmt, err = parser.ParseOneStmt("create table test2 ( a int, b int, c char(20),primary key (a,b),unique key u_1(a,c) ) TDSQL_DISTRIBUTED BY RANGE(c);", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "c")
+
+	stmt, err = parser.ParseOneStmt("create table test2 ( a int, b int, c char(20),primary key (a,b),unique key u_1(a,c) ) TDSQL_DISTRIBUTED BY RANGE(c) (s1 values less than(100),s2 values less than(200));", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "c")
 }
 
 func (s *testParserSuite) TestHintError(c *C) {
