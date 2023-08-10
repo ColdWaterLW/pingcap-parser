@@ -3244,7 +3244,7 @@ DatabaseOptionList:
  *      )
  *******************************************************************/
 CreateTableStmt:
-	"CREATE" OptTemporary "TABLE" IfNotExists TableName TableElementListOpt CreateTableOptionListOpt TdSqlDistributed PartitionOpt DuplicateOpt AsOpt CreateTableSelectOpt
+	"CREATE" OptTemporary "TABLE" IfNotExists TableName TableElementListOpt CreateTableOptionListOpt PartitionOpt TdSqlDistributed DuplicateOpt AsOpt CreateTableSelectOpt
 	{
 		stmt := $6.(*ast.CreateTableStmt)
 		stmt.Table = $5.(*ast.TableName)
@@ -3252,10 +3252,10 @@ CreateTableStmt:
 		stmt.IsTemporary = $2.(bool)
 		stmt.Options = $7.([]*ast.TableOption)
 		if $8 != nil {
-			stmt.TdSqlDistributed = $8.(*ast.TdSqlDistributed)
-		}
+        	stmt.Partition = $8.(*ast.PartitionOptions)
+        }
 		if $9 != nil {
-			stmt.Partition = $9.(*ast.PartitionOptions)
+			stmt.TdSqlDistributed = $9.(*ast.TdSqlDistributed)
 		}
 		stmt.OnDuplicate = $10.(ast.OnDuplicateKeyHandlingType)
 		stmt.Select = $12.(*ast.CreateTableStmt).Select
