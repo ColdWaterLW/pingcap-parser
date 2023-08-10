@@ -487,6 +487,7 @@ var tokenMap = map[string]int{
 	"PAGE":                     pageSym,
 	"PARSER":                   parser,
 	"PARTIAL":                  partial,
+	"TDSQL_DISTRIBUTED":        tdsql_distributed,
 	"PARTITION":                partition,
 	"PARTITIONING":             partitioning,
 	"PARTITIONS":               partitions,

@@ -204,6 +204,7 @@ import (
 	outer             "OUTER"
 	over              "OVER"
 	partition         "PARTITION"
+	tdsql_distributed "TDSQL_DISTRIBUTED"
 	percentRank       "PERCENT_RANK"
 	precisionType     "PRECISION"
 	primary           "PRIMARY"
@@ -980,9 +981,14 @@ import (
 	QuickOptional                          "QUICK or empty"
 	PartitionDefinition                    "Partition definition"
 	PartitionDefinitionList                "Partition definition list"
+	TdSqlPartitionDefinitionListOpt 	   "TD SQL Partition definition list option"
+	TdPartitionDefinitionList			   "TD Partition definition list"
+	TdPartitionDefinition 				   "TD Partition definition"
 	PartitionDefinitionListOpt             "Partition definition list option"
 	PartitionKeyAlgorithmOpt               "ALGORITHM = n option for KEY partition"
 	PartitionMethod                        "Partition method"
+	TdSqlDistributed 					   "TD SQL Distributed"
+	TdSqlDistrubutedMethod 				   "TD SQL Distributed method"
 	PartitionOpt                           "Partition option"
 	PartitionNameList                      "Partition name list"
 	PartitionNameListOpt                   "table partition names list optional"
@@ -3238,7 +3244,7 @@ DatabaseOptionList:
  *      )
  *******************************************************************/
 CreateTableStmt:
-	"CREATE" OptTemporary "TABLE" IfNotExists TableName TableElementListOpt CreateTableOptionListOpt PartitionOpt DuplicateOpt AsOpt CreateTableSelectOpt
+	"CREATE" OptTemporary "TABLE" IfNotExists TableName TableElementListOpt CreateTableOptionListOpt PartitionOpt TdSqlDistributed DuplicateOpt AsOpt CreateTableSelectOpt
 	{
 		stmt := $6.(*ast.CreateTableStmt)
 		stmt.Table = $5.(*ast.TableName)
@@ -3246,10 +3252,13 @@ CreateTableStmt:
 		stmt.IsTemporary = $2.(bool)
 		stmt.Options = $7.([]*ast.TableOption)
 		if $8 != nil {
-			stmt.Partition = $8.(*ast.PartitionOptions)
+        	stmt.Partition = $8.(*ast.PartitionOptions)
+        }
+		if $9 != nil {
+			stmt.TdSqlDistributed = $9.(*ast.TdSqlDistributed)
 		}
-		stmt.OnDuplicate = $9.(ast.OnDuplicateKeyHandlingType)
-		stmt.Select = $11.(*ast.CreateTableStmt).Select
+		stmt.OnDuplicate = $10.(ast.OnDuplicateKeyHandlingType)
+		stmt.Select = $12.(*ast.CreateTableStmt).Select
 		$$ = stmt
 	}
 |	"CREATE" OptTemporary "TABLE" IfNotExists TableName LikeTableWithOrWithoutParen
@@ -3266,6 +3275,47 @@ DefaultKwdOpt:
 	%prec lowerThanCharsetKwd
 	{}
 |	"DEFAULT"
+
+TdSqlDistributed:
+   {
+   	   $$ = nil
+   }
+|  "TDSQL_DISTRIBUTED" "BY" TdSqlDistrubutedMethod PartitionNumOpt TdSqlPartitionDefinitionListOpt
+   {
+   		method := $3.(*ast.PartitionMethod)
+   		method.Num = $4.(uint64)
+   		defs, _ := $5.([]*ast.PartitionDefinition)
+   		tdSqlDistributed := &ast.TdSqlDistributed{
+   		    PartitionOptions:  &ast.PartitionOptions{
+   		        PartitionMethod: *method,
+   		        Definitions:     defs,
+   		    },
+   		}
+   		if err := tdSqlDistributed.Validate(); err != nil {
+   		    yylex.AppendError(err)
+   		    return 1
+   		}
+   		$$ = tdSqlDistributed
+   }
+
+TdSqlDistrubutedMethod:
+   {
+   	   $$ = nil
+   }
+|	"RANGE" '(' ColumnNameList ')'
+	{
+		$$ = &ast.PartitionMethod{
+			Tp:          model.PartitionTypeRange,
+			ColumnNames: $3.([]*ast.ColumnName),
+		}
+	}
+|	"LIST" '(' ColumnNameList ')'
+	{
+		$$ = &ast.PartitionMethod{
+			Tp:          model.PartitionTypeList,
+			ColumnNames: $3.([]*ast.ColumnName),
+		}
+	}
 
 PartitionOpt:
 	{
@@ -3416,6 +3466,26 @@ PartitionNumOpt:
 		$$ = res
 	}
 
+TdSqlPartitionDefinitionListOpt:
+	/* empty */ %prec lowerThanCreateTableSelect
+	{
+		$$ = nil
+	}
+|	'(' TdPartitionDefinitionList ')'
+	{
+		$$ = $2.([]*ast.PartitionDefinition)
+	}
+
+TdPartitionDefinitionList:
+		/* empty */ %prec lowerThanCreateTableSelect
+    	{
+    		$$ = nil
+    	}
+    |	'(' PartitionDefinitionList ')'
+    	{
+    		$$ = $2.([]*ast.PartitionDefinition)
+    	}
+
 PartitionDefinitionListOpt:
 	/* empty */ %prec lowerThanCreateTableSelect
 	{
@@ -3434,6 +3504,27 @@ PartitionDefinitionList:
 |	PartitionDefinitionList ',' PartitionDefinition
 	{
 		$$ = append($1.([]*ast.PartitionDefinition), $3.(*ast.PartitionDefinition))
+	}
+
+TdPartitionDefinitionList:
+    TdPartitionDefinition
+    {
+    	$$ = []*ast.PartitionDefinition{$1.(*ast.PartitionDefinition)}
+    }
+|	TdPartitionDefinitionList ',' TdPartitionDefinition
+    {
+    	$$ = append($1.([]*ast.PartitionDefinition), $3.(*ast.PartitionDefinition))
+    }
+
+TdPartitionDefinition:
+	Identifier PartDefValuesOpt PartDefOptionList SubPartDefinitionListOpt
+	{
+		$$ = &ast.PartitionDefinition{
+			Name:    model.NewCIStr($1),
+			Clause:  $2.(ast.PartitionDefinitionClause),
+			Options: $3.([]*ast.TableOption),
+			Sub:     $4.([]*ast.SubPartitionDefinition),
+		}
 	}
 
 PartitionDefinition:
