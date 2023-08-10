@@ -2993,6 +2993,42 @@ func (s *testParserSuite) TestDDLValue(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
 	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "c")
+
+	// 一级hash二级range分区
+	stmt, err = parser.ParseOneStmt("CREATE TABLE `employees_hash_range` (`id`int NOT NULL,`city` varchar(10),`fired` DATE NOT NULL DEFAULT '1970.01.01',PRIMARY KEY(id)) shardkey=id PARTITION BY RANGE (month(fired)) (PARTITION p0 VALUES LESS THAN (202106),PARTITION p1 VALUES LESS THAN (202107));", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).Options[0].StrValue, Equals, "id")
+
+	// 一级list二级range分区
+	stmt, err = parser.ParseOneStmt("CREATE TABLE `employees_list_range` (`id`int NOT NULL,`city` varchar(10),`fired` DATE NOT NULL DEFAULT '1970.01.01',PRIMARY KEY(id,fired)) PARTITION BY RANGE (month(fired)) (PARTITION p0 VALUES LESS THAN (202106),PARTITION p1 VALUES LESS THAN (202107)) TDSQL_DISTRIBUTED BY LIST(id) (s1 VALUES IN (1,3,5),s2 VALUES IN (2,4,6));", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "id")
+
+	// 一级range二级range分区
+	stmt, err = parser.ParseOneStmt("CREATE TABLE `employees_range_range` (\n`id`int NOT NULL,\n`city` varchar(10),\n`fired` DATE NOT NULL DEFAULT '1970.01.01',\nPRIMARY KEY(id,fired)\n)\nPARTITION BY RANGE (month(fired)) (\nPARTITION p0 VALUES LESS THAN (202106),\nPARTITION p1 VALUES LESS THAN (202107)\n)\nTDSQL_DISTRIBUTED BY RANGE(id) (\ns1 VALUES LESS THAN (6),\ns2 VALUES LESS THAN (11)\n);", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "id")
+
+	// 一级range二级range分区和子分区
+	stmt, err = parser.ParseOneStmt("CREATE TABLE tb_sub_ev (\nid int NOT NULL,\npurchased date NOT NULL,\nPRIMARY KEY (id,purchased)\n) ENGINE=InnoDB\nPARTITION BY RANGE (YEAR(purchased))\nSUBPARTITION BY HASH (TO_DAYS(purchased))\n(PARTITION p0 VALUES LESS THAN (1990)\n(SUBPARTITION s0 ENGINE = InnoDB,\nSUBPARTITION s1 ENGINE = InnoDB),\nPARTITION p1 VALUES LESS THAN (2000)\n(SUBPARTITION s2 ENGINE = InnoDB,\nSUBPARTITION s3 ENGINE = InnoDB))\nTDSQL_DISTRIBUTED BY RANGE(id) (s1 values less than ('100'),s2 values less than ('1000'));", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "id")
+
+	// 一级list二级list分区
+	stmt, err = parser.ParseOneStmt("CREATE TABLE `employees_list_list` (\n`id`int NOT NULL,\n`region`int NOT NULL,\n`city` varchar(10),\n`fired` DATE NOT NULL DEFAULT '1970.01.01',PRIMARY KEY(id, region)\n)\nPARTITION BY LIST (region) (\nPARTITION pRegion_1 VALUES IN (10, 30),\nPARTITION pRegion_2 VALUES IN (20, 40)\n)\nTDSQL_DISTRIBUTED BY LIST(id) (\ns1 VALUES IN (1,3,5),\ns2 VALUES IN (2,4,6)\n);", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "id")
+
+	// 一级range二级list分区
+	stmt, err = parser.ParseOneStmt("CREATE TABLE `employees_range_list` (\n`id`int NOT NULL,\n`region`int NOT NULL,\n`city` varchar(10),\n`fired` DATE NOT NULL DEFAULT '1970.01.01',\nPRIMARY KEY(id,region)\n)\nPARTITION BY LIST (region) (\nPARTITION pRegion_1 VALUES IN (10, 30),\nPARTITION pRegion_2 VALUES IN (20, 40)\n)\nTDSQL_DISTRIBUTED BY RANGE(id) (\ns1 VALUES LESS THAN (6),\ns2 VALUES LESS THAN (11)\n);", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(stmt, FitsTypeOf, &ast.CreateTableStmt{})
+	c.Assert(stmt.(*ast.CreateTableStmt).TdSqlDistributed.ColumnNames[0].Name.O, Equals, "id")
 }
 
 func (s *testParserSuite) TestHintError(c *C) {
